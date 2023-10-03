@@ -28,9 +28,11 @@ class Model(nn.Module):
 
         self.max_marker = max_marker
 
-        hidden_size = 8
+        hidden_size = 16
         self.m = nn.Sequential(
             nn.Linear(window_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
@@ -45,16 +47,10 @@ class Model(nn.Module):
         x.data[:, -1] = 1
 
         # NOTE: this is probably very slow @Speedup
-        top_values, top_indices = torch.topk(x, self.max_marker)
-        top_values = top_values.min(axis=1).values
-        top_values = top_values.view(-1, 1)
+        _, top_indices = torch.topk(x, self.max_marker)
 
-        # TODO: maybe we dont need this here but its better to test it
-        #       in a much simpler example
-        # top_values = top_values.repeat(1, 100)
-
-        x.data[x >= top_values] = 1
-        x.data[x < top_values] = 0
+        x.data[:] = 0
+        x.data[:, top_indices] = 1
 
         return x
     
@@ -120,7 +116,10 @@ def test_loop(dataloader, model, loss_fn):
 
             window = x.view(-1)
             window_decomposed = output.view(-1)
+            
             amount_markers = int(mask.sum().item())
+            assert amount_markers == MAX_MARKER, f"{amount_markers=} != {MAX_MARKER=}"
+
             markers = (x*mask).view(-1)
             markers[markers == 0] = float("nan")
 
@@ -132,10 +131,10 @@ def test_loop(dataloader, model, loss_fn):
 
 
 if __name__ == "__main__":
-    WINDOW_SIZE = 100
-    BATCH_SIZE = 16
-    EPOCHS = 5
-    MAX_MARKER = 10
+    WINDOW_SIZE = 16
+    BATCH_SIZE = 4
+    EPOCHS = 50
+    MAX_MARKER = 8
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--train", action="store_true")
